@@ -7,7 +7,6 @@ import hashlib
 import platform
 import shutil
 import re
-import signal
 import sqlite3
 import subprocess
 import sys
@@ -1326,7 +1325,7 @@ async function loadPlaylists(){
     const d = await api("/api/playlists", {}, 45000);
     if(!d.ok){
       log("[ERROR] " + d.error);
-      setStatus("Refresh failed");
+      setStatus("Error: " + d.error);
       return;
     }
     playlists = d.playlists || [];
@@ -1335,7 +1334,7 @@ async function loadPlaylists(){
     setStatus("Loaded " + playlists.length + " playlists.");
   } catch (e) {
     log("[ERROR] refresh request failed: " + (e?.message || e));
-    setStatus("Refresh failed");
+    setStatus("Error: " + (e?.message || "refresh failed"));
   } finally {
     setRefreshingBusy(false);
     updateActionState();
@@ -1868,17 +1867,12 @@ def run_web(open_browser: bool = True) -> int:
         print(f"[WARN] {rt['reason']}")
     server = ThreadingHTTPServer((HOST, PORT), Handler)
 
-    def _shutdown(_signum, _frame) -> None:
-        print("\nShutting down server...")
-        server.shutdown()
-
-    signal.signal(signal.SIGINT, _shutdown)
-    signal.signal(signal.SIGTERM, _shutdown)
-
     if open_browser:
         webbrowser.open(url)
     try:
         server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nShutting down server...")
     finally:
         server.server_close()
         print("Server stopped cleanly.")
