@@ -40,3 +40,9 @@ Describe what you expected to happen.
 Paste relevant logs or screenshots.
 
 Please remove private paths, personal playlist names, Apple ID information, and other sensitive data before posting.
+
+If possible, include the output of:
+
+```bash
+python3 playlist_cover_helper_web.py doctor
+```

@@ -7,8 +7,10 @@ All notable changes to CoverFix should be documented in this file.
 - Prepare GitHub documentation.
 - Clarify project positioning as an Apple Music playlist cover repair tool.
 - Document the real Python entry point, CLI commands, safety behavior, and privacy expectations.
+- Add release notes and GitHub promotion guidance.
+- Keep Python bytecode artifacts excluded from the repository.
 
-## [0.1.0] - YYYY-MM-DD
+## [0.1.0] - Pending first tagged release
 
 Initial public version.
 

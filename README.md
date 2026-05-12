@@ -4,7 +4,7 @@ CoverFix is a small Python tool for fixing missing, blank, or broken Apple Music
 
 CoverFix 是一个用于修复 Apple Music 播放列表封面丢失、空白、不同步问题的 Python 小工具。
 
-GitHub: https://github.com/EinProfispieler/coverfix
+It runs locally, uses Apple Music / Music.app on the same Mac, and focuses only on playlist artwork.
 
 
 <img src="assets/Epanda.png" alt="Evil Panda MD Production" width="180" />
@@ -13,7 +13,7 @@ GitHub: https://github.com/EinProfispieler/coverfix
 
 ![CoverFix screenshot](assets/screen.png)
 
-## What problem does it solve?
+## What it fixes
 
 Apple Music / Music.app on macOS may sometimes show broken playlist artwork.
 
@@ -26,7 +26,7 @@ Common cases:
 - Some playlists fall back to the default generated collage cover
 - Managing many playlist covers manually becomes repetitive
 
-CoverFix focuses on this specific problem: fixing Apple Music playlist artwork.
+CoverFix focuses on one specific problem: fixing Apple Music playlist artwork.
 
 It is not a general music tag editor. It is not designed to edit album artwork inside MP3, M4A, FLAC, or ALAC files.
 
@@ -62,7 +62,7 @@ CoverFix is specifically focused on Apple Music playlist covers.
 
 No third-party Python package is currently required.
 
-## Run
+## Quick start
 
 ```bash
 git clone https://github.com/EinProfispieler/coverfix.git
@@ -71,7 +71,7 @@ chmod +x run.sh
 ./run.sh
 ```
 
-The web UI opens at: <http://127.0.0.1:8765>
+The local web UI opens at: <http://127.0.0.1:8765>
 
 Or run the entry file directly:
 
@@ -182,15 +182,15 @@ CoverFix runs locally and does not upload music files.
 
 When a playlist has no local track artwork available, CoverFix may query Apple's public iTunes Search API using the first track's title, artist, and album to fetch candidate artwork. See [PRIVACY.md](PRIVACY.md) for details.
 
-## CI package
+## GitHub Actions archive
 
-GitHub Actions creates a zip archive on pushes to `main` using a macOS runner.
+GitHub Actions creates a source zip archive on pushes to `main` using a macOS runner.
 
 - Workflow: `.github/workflows/package-macos.yml`
 - Output: `CoverFix-macos-<short_sha>.zip`
 - Release tag: `macos-latest`
 
-This is a source/package zip, not a signed macOS app or App Store build.
+This is a Python source archive, not a signed macOS app, installer, or App Store build.
 
 ## How it works
 

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Privacy reminder
+    url: https://github.com/EinProfispieler/coverfix/blob/main/PRIVACY.md
+    about: Remove private paths, playlist names, Apple ID information, and other sensitive data before posting.

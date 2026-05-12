@@ -31,7 +31,7 @@ This roadmap describes possible directions for CoverFix.
 - Optional automatic playlist cover generation
 - Better batch repair workflow for large libraries
 - More detailed diagnostics for Apple Music cache and sync issues
-- Packaged macOS app only if there is clear demand and a maintainable release path
+- Native macOS app only if there is clear demand and a maintainable release path
 
 ## Not planned for now
 
