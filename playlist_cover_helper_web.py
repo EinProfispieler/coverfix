@@ -741,8 +741,15 @@ INDEX_HTML = """<!doctype html>
       background: var(--accent);
       color: white;
     }
+    button.danger {
+      border-color: var(--danger);
+      background: var(--danger);
+      color: white;
+      font-weight: 600;
+    }
     button:hover:not(:disabled) { border-color: var(--accent); }
     button.primary:hover:not(:disabled) { background: var(--accent-dark); }
+    button.danger:hover:not(:disabled) { background: #7e2d23; border-color: #7e2d23; }
     button:disabled {
       cursor: not-allowed;
       opacity: .52;
@@ -1006,7 +1013,7 @@ INDEX_HTML = """<!doctype html>
       <span id="selectionCount" class="selection-count">0 selected</span>
       <span class="spacer"></span>
       <button id="btnGen" onclick="generateSelected()">Generate Selected</button>
-      <button id="btnApply" class="primary" onclick="applySelected()">Apply</button>
+      <button id="btnApply" class="danger" onclick="applySelected()">Apply</button>
       <button id="btnOpen" onclick="openCovers()">Open Folder</button>
       <button id="btnRescue" onclick="showRescueInfo()">Rescue Mode</button>
       <div id="runtimeNotice" class="runtime-notice"></div>

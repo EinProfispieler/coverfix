@@ -44,6 +44,34 @@ Generated covers are written to:
 ~/.coverfix/covers
 ```
 
+## CLI Usage
+
+CoverFix also works headlessly without the web UI.
+
+```bash
+# List all playlists (shows pid, track_count, name)
+python3 playlist_cover_helper_web.py list
+
+# Generate covers for specific playlists (by pid)
+python3 playlist_cover_helper_web.py generate --pid <pid>
+python3 playlist_cover_helper_web.py generate --pid <pid1> --pid <pid2>
+
+# Generate AND apply covers in one step
+python3 playlist_cover_helper_web.py apply --pid <pid>
+python3 playlist_cover_helper_web.py apply --pid <pid1> --pid <pid2>
+
+# Rescue: inspect/restore artwork database backups
+python3 playlist_cover_helper_web.py rescue --list
+python3 playlist_cover_helper_web.py rescue --latest --yes
+python3 playlist_cover_helper_web.py rescue --timestamp 20260512-143000 --yes
+
+# Explicitly start web UI
+python3 playlist_cover_helper_web.py web
+python3 playlist_cover_helper_web.py web --no-open  # skip auto-opening browser
+```
+
+Get the `pid` for a playlist by running `list` first — it appears in the first column.
+
 ## How It Works
 CoverFix talks to Apple Music via AppleScript to enumerate playlists and trigger artwork refreshes, then writes images directly into the local `artworkd.sqlite` database used by `AMPArtworkAgent`. Music is restarted once per batch so changes take effect.
 
