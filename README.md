@@ -1,0 +1,51 @@
+# CoverFix
+
+A local web UI (macOS) for fixing and managing Apple Music playlist artwork.
+
+## What It Does
+- Lists normal user playlists from Apple Music.
+- Generates a candidate cover from the first available track artwork in each playlist.
+- Previews the current artwork stored by Apple Music and the generated candidate side-by-side.
+- Applies selected playlist covers through the local Apple Music artwork database.
+- Batches selected playlists so Music quits and reopens only once per apply run.
+
+## Requirements
+- macOS with the Apple Music app
+- Python 3.9+
+- Pillow (`pip3 install Pillow`)
+
+## Run
+```bash
+chmod +x run.sh
+./run.sh
+```
+
+The UI opens at: <http://127.0.0.1:8765>
+
+Legacy Tk version (optional):
+```bash
+python3 playlist_cover_helper.py
+```
+
+## First-Launch Permissions
+You may be prompted for:
+- **Apple Events** permission for controlling Music.
+- **Accessibility** permission if you use the legacy Tk automation flow.
+
+## Workflow
+1. Click **Refresh**.
+2. Select one or more playlists via the checkboxes.
+3. Use **Generate Selected** to inspect candidates, or **Apply Selected Once** to generate and apply in one batch.
+4. Check **Current in Music** after Music restarts.
+
+## Output Folder
+Generated covers are written to:
+```
+~/.coverfix/covers
+```
+
+## How It Works
+CoverFix talks to Apple Music via AppleScript to enumerate playlists and trigger artwork refreshes, then writes images directly into the local `artworkd.sqlite` database used by `AMPArtworkAgent`. Music is restarted once per batch so changes take effect.
+
+## License
+MIT — see [LICENSE](LICENSE).
