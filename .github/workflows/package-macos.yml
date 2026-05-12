@@ -1,0 +1,40 @@
+name: package-macos
+
+on:
+  push:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build package
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          PKG_NAME="CoverFix-macos-${GITHUB_SHA::7}"
+          mkdir -p "dist/${PKG_NAME}"
+
+          cp LICENSE "dist/${PKG_NAME}/"
+          cp README.md "dist/${PKG_NAME}/"
+          cp run.sh "dist/${PKG_NAME}/"
+          cp playlist_cover_helper_web.py "dist/${PKG_NAME}/"
+          cp playlist_cover_helper.py "dist/${PKG_NAME}/"
+          cp inject_playlist_cover.py "dist/${PKG_NAME}/"
+          mkdir -p "dist/${PKG_NAME}/assets"
+          cp assets/Epanda.png "dist/${PKG_NAME}/assets/Epanda.png"
+
+          chmod +x "dist/${PKG_NAME}/run.sh"
+          (cd dist && zip -r "${PKG_NAME}.zip" "${PKG_NAME}")
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverfix-macos-${{ github.sha }}
+          path: dist/*.zip
+          if-no-files-found: error

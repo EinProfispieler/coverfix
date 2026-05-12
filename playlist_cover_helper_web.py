@@ -23,6 +23,8 @@ from typing import Dict, List, Optional, Tuple
 HOST = "127.0.0.1"
 PORT = 8765
 APP_TITLE = "CoverFix"
+APP_GITHUB_URL = "https://github.com/EinProfispieler/coverfix"
+APP_BRAND_IMAGE_PATH = Path(__file__).resolve().parent / "assets" / "Epanda.png"
 OSASCRIPT_TIMEOUT_SEC = 45
 OUT_DIR = Path.home() / ".coverfix" / "covers"
 LEGACY_OUT_DIR = Path.home() / ".playlist-cover-helper" / "covers"
@@ -94,9 +96,39 @@ def _run_osascript(script: str) -> Tuple[bool, str]:
             "Music may be busy or waiting for permission.",
         )
     if proc.returncode != 0:
-        err = proc.stderr.strip() or proc.stdout.strip() or "unknown AppleScript error"
+        err = _normalize_osascript_error(proc.stderr, proc.stdout)
         return False, err
     return True, proc.stdout.strip()
+
+
+def _normalize_osascript_error(stderr_text: str, stdout_text: str) -> str:
+    raw = (stderr_text or "").strip() or (stdout_text or "").strip() or "unknown AppleScript error"
+    lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+    filtered = [
+        ln
+        for ln in lines
+        if "TISFileInterrogator" not in ln
+        and "Keyboard Layouts:" not in ln
+        and "Error received in message reply handler" not in ln
+    ]
+    joined = "\n".join(filtered if filtered else lines)
+    if "Connection Invalid error for service com.apple.hiservices-xpcservice." in raw:
+        return (
+            "AppleScript service connection failed (hiservices-xpcservice). "
+            "Try rebooting macOS, then re-open Music and CoverFix. "
+            "If this persists, run `python3 playlist_cover_helper_web.py doctor`."
+        )
+    if "(-1743)" in raw:
+        return (
+            "Automation permission denied. Allow Terminal/Python to control Music in "
+            "System Settings -> Privacy & Security -> Automation."
+        )
+    if "(-2741)" in raw:
+        return (
+            "AppleScript syntax/runtime bridge failed while talking to Music. "
+            "Try opening Music once manually, then run `python3 playlist_cover_helper_web.py doctor`."
+        )
+    return joined[:2000]
 
 
 def _as_quote(s: str) -> str:
@@ -415,21 +447,31 @@ def fetch_playlists() -> Tuple[bool, List[Playlist] | str]:
 set oldDelims to AppleScript's text item delimiters
 set AppleScript's text item delimiters to tab
 tell application "Music"
-    -- exclude system/smart playlists like library "音乐 / Music"
-    set ps to (every user playlist whose smart is false and special kind is none)
+    -- Some playlist subclasses don't support a direct `whose smart/special kind` filter.
+    -- Enumerate all playlists, then filter defensively per item.
+    set ps to every playlist
     set rows to {}
     repeat with p in ps
-        set pName to name of p
-        set pId to persistent ID of p
-        set tCount to count of tracks of p
-        set hasArt to false
-        if tCount > 0 then
-            try
-                set t to track 1 of p
-                set hasArt to ((count of artworks of t) > 0)
-            end try
+        set includeIt to true
+        try
+            if (smart of p) is true then set includeIt to false
+        end try
+        try
+            if (special kind of p) is not none then set includeIt to false
+        end try
+        if includeIt then
+            set pName to name of p
+            set pId to persistent ID of p
+            set tCount to count of tracks of p
+            set hasArt to false
+            if tCount > 0 then
+                try
+                    set t to track 1 of p
+                    set hasArt to ((count of artworks of t) > 0)
+                end try
+            end if
+            set end of rows to (pId & tab & pName & tab & (tCount as text) & tab & (hasArt as text))
         end if
-        set end of rows to (pId & tab & pName & tab & (tCount as text) & tab & (hasArt as text))
     end repeat
     set AppleScript's text item delimiters to linefeed
     set outText to rows as text
@@ -460,14 +502,14 @@ return outText
     return True, result
 
 
-def export_first_track_artwork(playlist_name: str, output_file: Path) -> Tuple[bool, str]:
+def export_first_track_artwork(playlist_pid: str, output_file: Path) -> Tuple[bool, str]:
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    p = _as_quote(playlist_name)
+    pid = _as_quote(playlist_pid)
     out_path = _as_quote(str(output_file))
     script = f'''
 tell application "Music"
     try
-        set p to user playlist "{p}"
+        set p to first playlist whose persistent ID is "{pid}"
     on error
         return "ERR|PLAYLIST_NOT_FOUND"
     end try
@@ -510,12 +552,12 @@ return "OK"
     return False, out
 
 
-def get_first_track_seed(playlist_name: str) -> Tuple[bool, Tuple[str, str, str] | str]:
-    p = _as_quote(playlist_name)
+def get_first_track_seed(playlist_pid: str) -> Tuple[bool, Tuple[str, str, str] | str]:
+    pid = _as_quote(playlist_pid)
     script = f'''
 tell application "Music"
     try
-        set pl to user playlist "{p}"
+        set pl to first playlist whose persistent ID is "{pid}"
     on error
         return "ERR|PLAYLIST_NOT_FOUND"
     end try
@@ -652,8 +694,8 @@ def fetch_artwork_from_catalog(track: str, artist: str, album: str) -> Tuple[boo
     return False, f"Artwork download failed: {last_err or 'unknown error'}"
 
 
-def export_cover_with_fallback(playlist_name: str, output_file: Path) -> Tuple[bool, str]:
-    ok, msg = export_first_track_artwork(playlist_name, output_file)
+def export_cover_with_fallback(playlist_pid: str, output_file: Path) -> Tuple[bool, str]:
+    ok, msg = export_first_track_artwork(playlist_pid, output_file)
     if ok:
         return True, "local-artwork"
 
@@ -661,7 +703,7 @@ def export_cover_with_fallback(playlist_name: str, output_file: Path) -> Tuple[b
     if "ERR|NO_TRACK_WITH_ARTWORK" not in msg:
         return False, msg
 
-    ok_seed, seed_or_err = get_first_track_seed(playlist_name)
+    ok_seed, seed_or_err = get_first_track_seed(playlist_pid)
     if not ok_seed:
         return False, f"{msg}; seed={seed_or_err}"
     track, artist, album = seed_or_err  # type: ignore[misc]
@@ -779,11 +821,17 @@ INDEX_HTML = """<!doctype html>
       font-size: 12px;
       text-transform: uppercase;
     }
-    .status {
-      min-width: 220px;
+    .project-meta {
+      font-size: 12px;
       color: var(--muted);
-      text-align: right;
-      font-size: 13px;
+      text-transform: none;
+    }
+    .project-meta a {
+      color: var(--accent-dark);
+      text-decoration: none;
+    }
+    .project-meta a:hover {
+      text-decoration: underline;
     }
     .toolbar, .pane, .log-panel {
       border: 1px solid var(--line);
@@ -841,7 +889,10 @@ INDEX_HTML = """<!doctype html>
     }
     .table-scroll {
       min-height: 0;
-      overflow: auto;
+      flex: 1 1 auto;
+      overflow-y: auto;
+      overflow-x: auto;
+      scrollbar-gutter: stable;
     }
     table {
       width: 100%;
@@ -857,6 +908,30 @@ INDEX_HTML = """<!doctype html>
       color: #4e5854;
       border-bottom: 1px solid var(--line-strong);
       font-weight: 650;
+    }
+    .sort-btn {
+      border: 0;
+      padding: 0;
+      margin: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-weight: 650;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+    .sort-btn:hover { color: var(--accent-dark); }
+    .sort-indicator {
+      min-width: 10px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1;
+    }
+    th.tracks .sort-btn {
+      width: 100%;
+      justify-content: flex-end;
     }
     th, td {
       padding: 9px 10px;
@@ -900,7 +975,7 @@ INDEX_HTML = """<!doctype html>
     }
     .preview-body {
       min-height: 0;
-      overflow: auto;
+      overflow: hidden;
       padding: 12px;
       display: grid;
       gap: 12px;
@@ -962,10 +1037,16 @@ INDEX_HTML = """<!doctype html>
       font-size: 12px;
       text-transform: uppercase;
     }
-    #log {
-      margin: 0;
+    .log-body {
       min-height: 0;
       flex: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 210px;
+      overflow: hidden;
+    }
+    #log {
+      margin: 0;
+      min-height: 100%;
       overflow: auto;
       padding: 10px 12px;
       white-space: pre-wrap;
@@ -975,6 +1056,43 @@ INDEX_HTML = """<!doctype html>
       background: rgba(31,37,35,.96);
       color: #f3efe7;
     }
+    .log-brand {
+      border-left: 1px solid rgba(230, 224, 210, 0.12);
+      background: rgba(31,37,35,.96);
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      overflow: hidden;
+    }
+    .log-brand-image {
+      width: 64px;
+      height: 64px;
+      object-fit: cover;
+      border-radius: 999px;
+      border: 1px solid rgba(230, 224, 210, 0.35);
+      background: #0e1110;
+    }
+    .log-brand-title {
+      color: #f3efe7;
+      font-size: 11px;
+      font-weight: 650;
+      text-align: center;
+      line-height: 1.25;
+    }
+    .log-brand-meta {
+      color: #c8c0b2;
+      font-size: 11px;
+      text-align: center;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+    .log-brand-meta a {
+      color: #8fcfc8;
+      text-decoration: none;
+    }
+    .log-brand-meta a:hover { text-decoration: underline; }
     @media (max-width: 900px) {
       .shell {
         width: calc(100vw - 20px);
@@ -985,8 +1103,9 @@ INDEX_HTML = """<!doctype html>
       }
       .workspace { grid-template-columns: 1fr; }
       .preview-body { grid-template-columns: 1fr 1fr; }
-      .status { text-align: left; }
       .app-head { align-items: start; flex-direction: column; }
+      .log-body { grid-template-columns: 1fr; }
+      .log-brand { display: none; }
     }
     @media (max-width: 560px) {
       .preview-body { grid-template-columns: 1fr; }
@@ -1002,7 +1121,6 @@ INDEX_HTML = """<!doctype html>
         <p class="eyebrow">Apple Music local artwork</p>
         <h1>CoverFix</h1>
       </div>
-      <div id="status" class="status">Idle</div>
     </header>
 
     <section class="toolbar">
@@ -1014,23 +1132,28 @@ INDEX_HTML = """<!doctype html>
       <button id="btnGen" onclick="generateSelected()">Generate Selected</button>
       <button id="btnApply" class="danger" onclick="applySelected()">Apply</button>
       <button id="btnOpen" onclick="openCovers()">Open Folder</button>
-      <button id="btnRescue" onclick="showRescueInfo()">Rescue Mode</button>
       <div id="runtimeNotice" class="runtime-notice"></div>
     </section>
 
     <main class="workspace">
       <section class="pane">
-        <div class="pane-head">
-          <h2>Playlists</h2>
-          <span id="playlistCount" class="selection-count">0 playlists</span>
-        </div>
         <div class="table-scroll">
           <table id="tbl">
             <thead>
               <tr>
                 <th class="check"></th>
-                <th>Playlist</th>
-                <th class="tracks">Tracks</th>
+                <th>
+                  <button id="sortPlaylistBtn" class="sort-btn" type="button" onclick="toggleSort('name')">
+                    Playlist
+                    <span id="sortPlaylistIndicator" class="sort-indicator">↑</span>
+                  </button>
+                </th>
+                <th class="tracks">
+                  <button id="sortTracksBtn" class="sort-btn" type="button" onclick="toggleSort('tracks')">
+                    Tracks
+                    <span id="sortTracksIndicator" class="sort-indicator">↕</span>
+                  </button>
+                </th>
                 <th class="art">Track Art</th>
                 <th class="state">Candidate</th>
               </tr>
@@ -1073,7 +1196,17 @@ INDEX_HTML = """<!doctype html>
 
     <section class="log-panel">
       <div class="log-head">Log</div>
-      <pre id="log"></pre>
+      <div class="log-body">
+        <pre id="log"></pre>
+        <aside class="log-brand">
+          <img class="log-brand-image" src="/api/brand-image" alt="Evil Panda MD Production mark" loading="lazy" />
+          <div class="log-brand-title">Evil Panda MD Production</div>
+          <div class="log-brand-meta">
+            <a href="__GITHUB_URL__" target="_blank" rel="noopener noreferrer">GitHub</a>
+            · MIT License
+          </div>
+        </aside>
+      </div>
     </section>
   </div>
 <script>
@@ -1085,21 +1218,22 @@ let isRefreshing = false;
 let isWorking = false;
 let previewSeq = 0;
 let previewPid = null;
+let sortKey = "name";
+let sortDir = "asc";
 
 const tbody = document.querySelector("#tbl tbody");
 const logEl = document.getElementById("log");
-const statusEl = document.getElementById("status");
 const btnRefresh = document.getElementById("btnRefresh");
 const btnSelectAll = document.getElementById("btnSelectAll");
 const btnClear = document.getElementById("btnClear");
 const btnGen = document.getElementById("btnGen");
 const btnApply = document.getElementById("btnApply");
 const btnOpen = document.getElementById("btnOpen");
-const btnRescue = document.getElementById("btnRescue");
 const runtimeNotice = document.getElementById("runtimeNotice");
 const emptyState = document.getElementById("emptyState");
 const selectionCount = document.getElementById("selectionCount");
-const playlistCount = document.getElementById("playlistCount");
+const sortPlaylistIndicator = document.getElementById("sortPlaylistIndicator");
+const sortTracksIndicator = document.getElementById("sortTracksIndicator");
 const previewName = document.getElementById("previewName");
 const currentImg = document.getElementById("currentImg");
 const currentEmpty = document.getElementById("currentEmpty");
@@ -1112,10 +1246,42 @@ function log(msg){
   logEl.textContent += msg + "\\n";
   logEl.scrollTop = logEl.scrollHeight;
 }
-function setStatus(s){ statusEl.textContent = s; }
+function setStatus(_s){ }
 function selectedIds(){ return playlists.filter(p => selected.has(p.pid)).map(p => p.pid); }
 function plural(n, word, many){
   return n + " " + (n === 1 ? word : (many || word + "s"));
+}
+function sortIndicator(key){
+  if(sortKey !== key) return "↕";
+  return sortDir === "asc" ? "↑" : "↓";
+}
+function updateSortIndicators(){
+  sortPlaylistIndicator.textContent = sortIndicator("name");
+  sortTracksIndicator.textContent = sortIndicator("tracks");
+}
+function sortedPlaylists(){
+  const dir = sortDir === "asc" ? 1 : -1;
+  const rows = [...playlists];
+  rows.sort((a, b) => {
+    if(sortKey === "tracks"){
+      const delta = (a.track_count - b.track_count) * dir;
+      if(delta !== 0) return delta;
+      return a.name.localeCompare(b.name, undefined, {sensitivity: "base"});
+    }
+    const byName = a.name.localeCompare(b.name, undefined, {sensitivity: "base"}) * dir;
+    if(byName !== 0) return byName;
+    return (a.track_count - b.track_count);
+  });
+  return rows;
+}
+function toggleSort(key){
+  if(sortKey === key){
+    sortDir = sortDir === "asc" ? "desc" : "asc";
+  } else {
+    sortKey = key;
+    sortDir = key === "tracks" ? "desc" : "asc";
+  }
+  renderPlaylists();
 }
 function sizeText(info){
   return info && info.width && info.height ? info.width + "x" + info.height : "";
@@ -1147,14 +1313,12 @@ function showRuntimeNotice(){
 function updateActionState(){
   const count = selected.size;
   selectionCount.textContent = plural(count, "selected", "selected");
-  playlistCount.textContent = plural(playlists.length, "playlist");
   btnGen.disabled = runtimeUnsupported() || count === 0 || isWorking || isRefreshing;
   btnApply.disabled = runtimeUnsupported() || count === 0 || isWorking || isRefreshing;
   btnSelectAll.disabled = playlists.length === 0 || isWorking || isRefreshing;
   btnClear.disabled = count === 0 || isWorking || isRefreshing;
   btnRefresh.disabled = runtimeUnsupported() || isWorking || isRefreshing;
   btnOpen.disabled = runtimeUnsupported();
-  btnRescue.disabled = runtimeUnsupported();
 }
 function cell(text, className){
   const td = document.createElement("td");
@@ -1173,9 +1337,10 @@ function renderPlaylists(){
   for(const pid of [...selected]){
     if(!valid.has(pid)) selected.delete(pid);
   }
+  updateSortIndicators();
   tbody.textContent = "";
   emptyState.hidden = playlists.length > 0;
-  for(const p of playlists){
+  for(const p of sortedPlaylists()){
     const tr = document.createElement("tr");
     tr.dataset.pid = p.pid;
     tr.classList.toggle("sel", selected.has(p.pid));
@@ -1391,7 +1556,7 @@ async function applySelected(){
   const ids = selectedIds();
   if(!ids.length){ return; }
   const question =
-    "Apply covers to " + ids.length + " playlist(s) and restart Apple Music once after batch?\n\n" +
+    "Apply covers to " + ids.length + " playlist(s) and restart Apple Music once after batch?\\n\\n" +
     "This modifies Apple Music artwork database.";
   if(!confirm(question)){ return; }
   setWorking(true, "Applying...");
@@ -1416,16 +1581,6 @@ async function applySelected(){
   }
 }
 function openCovers(){ window.open("/api/open-covers"); }
-function showRescueInfo(){
-  const cmd = "python3 " + RUNTIME.script_path + " rescue --list";
-  const text =
-    "Rescue mode is CLI-only for safety.\\n\\n" +
-    "1) List backups:\\n" + cmd + "\\n\\n" +
-    "2) Restore latest backup:\\n" +
-    "python3 " + RUNTIME.script_path + " rescue --latest --yes\\n\\n" +
-    "Warning: restore will overwrite current artwork DB files.";
-  alert(text);
-}
 showRuntimeNotice();
 updateActionState();
 loadPlaylists();
@@ -1461,7 +1616,8 @@ def generated_cover_path(pid: str) -> Optional[Path]:
 
 
 def render_index_html() -> str:
-    return INDEX_HTML.replace("__RUNTIME_JSON__", json.dumps(runtime_info(), ensure_ascii=False))
+    html = INDEX_HTML.replace("__RUNTIME_JSON__", json.dumps(runtime_info(), ensure_ascii=False))
+    return html.replace("__GITHUB_URL__", APP_GITHUB_URL)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -1547,7 +1703,7 @@ class Handler(BaseHTTPRequestHandler):
         results: List[Dict[str, object]] = []
         for playlist in playlists:
             cover_path = _playlist_cover_path(playlist)
-            ok, msg = export_cover_with_fallback(playlist.name, cover_path)
+            ok, msg = export_cover_with_fallback(playlist.pid, cover_path)
             row: Dict[str, object] = {
                 "pid": playlist.pid,
                 "name": playlist.name,
@@ -1629,6 +1785,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": False, "error": "generated cover not found"}, 404)
                 return
             self._send_image(generated)
+            return
+        if p == "/api/brand-image":
+            self._send_image(APP_BRAND_IMAGE_PATH)
             return
         if p == "/api/open-covers":
             ok_rt, rt_msg = require_supported_runtime()
@@ -1823,7 +1982,7 @@ def cli_generate(pids: List[str]) -> int:
     results: List[Dict[str, object]] = []
     for playlist in rows_or_err:
         cover_path = _playlist_cover_path(playlist)
-        ok_gen, msg = export_cover_with_fallback(playlist.name, cover_path)
+        ok_gen, msg = export_cover_with_fallback(playlist.pid, cover_path)
         if ok_gen:
             results.append(
                 {
@@ -1853,7 +2012,7 @@ def cli_apply(pids: List[str]) -> int:
     prepared: List[Tuple[Playlist, Path]] = []
     for playlist in rows_or_err:
         cover_path = _playlist_cover_path(playlist)
-        ok_gen, msg = export_cover_with_fallback(playlist.name, cover_path)
+        ok_gen, msg = export_cover_with_fallback(playlist.pid, cover_path)
         if not ok_gen:
             print(f"[ERROR] generate failed for {playlist.name}: {msg}")
             continue
@@ -1866,13 +2025,48 @@ def cli_apply(pids: List[str]) -> int:
     return 0 if all(bool(r.get("ok")) for r in results) else 1
 
 
+def cli_doctor() -> int:
+    report: Dict[str, object] = {"app": APP_TITLE, "runtime": runtime_info()}
+    checks: Dict[str, object] = {}
+    checks["artwork_db_exists"] = ARTWORK_DB.exists()
+    checks["artwork_dir_exists"] = ARTWORK_DIR.exists()
+    checks["out_dir"] = str(OUT_DIR)
+    checks["osascript_exists"] = shutil.which("osascript") is not None
+    if checks["osascript_exists"]:
+        ok, out = _run_osascript('tell application "Music" to get name')
+        checks["music_applescript_ok"] = ok
+        checks["music_applescript_result"] = out if ok else str(out)
+        ok_list, list_out = fetch_playlists()
+        checks["fetch_playlists_ok"] = ok_list
+        checks["fetch_playlists_result"] = (
+            f"{len(list_out)} playlist(s)" if ok_list else str(list_out)
+        )
+    else:
+        checks["music_applescript_ok"] = False
+        checks["music_applescript_result"] = "osascript not found"
+        checks["fetch_playlists_ok"] = False
+        checks["fetch_playlists_result"] = "osascript not found"
+    report["checks"] = checks
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0 if bool(checks.get("music_applescript_ok")) and bool(checks.get("fetch_playlists_ok")) else 1
+
+
 def run_web(open_browser: bool = True) -> int:
     url = f"http://{HOST}:{PORT}/"
-    print(f"{APP_TITLE} running at {url}")
     rt = runtime_info()
     if not bool(rt["supported"]):
         print(f"[WARN] {rt['reason']}")
-    server = ThreadingHTTPServer((HOST, PORT), Handler)
+    try:
+        server = ThreadingHTTPServer((HOST, PORT), Handler)
+    except OSError as exc:
+        if getattr(exc, "errno", None) == 48:
+            print(
+                f"[ERROR] Port {PORT} is already in use.\n"
+                f"Stop the existing process, or open {url} if CoverFix is already running."
+            )
+            return 1
+        raise
+    print(f"{APP_TITLE} running at {url}")
 
     if open_browser:
         webbrowser.open(url)
@@ -1908,6 +2102,8 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     p_rescue.add_argument("--yes", action="store_true", help="Confirm destructive restore action")
     p_rescue.add_argument("--no-restart", action="store_true", help="Do not re-open Music after restore")
 
+    sub.add_parser("doctor", help="Run diagnostics for AppleScript and local DB paths")
+
     return parser.parse_args(argv)
 
 
@@ -1923,6 +2119,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return cli_generate(args.pid)
     if cmd == "apply":
         return cli_apply(args.pid)
+    if cmd == "doctor":
+        return cli_doctor()
     if cmd == "rescue":
         if args.list:
             print(json.dumps({"backups": list_backups()}, ensure_ascii=False, indent=2))
