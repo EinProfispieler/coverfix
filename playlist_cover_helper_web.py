@@ -1037,6 +1037,11 @@ INDEX_HTML = """<!doctype html>
             </thead>
             <tbody></tbody>
           </table>
+          <div id="emptyState" hidden style="padding:24px 16px;color:var(--muted);font-size:.9em;line-height:1.6">
+            No playlists found.<br>
+            Make sure Apple Music is running and has regular (non-smart) user playlists.<br>
+            Check the Log panel below for the exact error.
+          </div>
         </div>
       </section>
 
@@ -1092,6 +1097,7 @@ const btnApply = document.getElementById("btnApply");
 const btnOpen = document.getElementById("btnOpen");
 const btnRescue = document.getElementById("btnRescue");
 const runtimeNotice = document.getElementById("runtimeNotice");
+const emptyState = document.getElementById("emptyState");
 const selectionCount = document.getElementById("selectionCount");
 const playlistCount = document.getElementById("playlistCount");
 const previewName = document.getElementById("previewName");
@@ -1168,6 +1174,7 @@ function renderPlaylists(){
     if(!valid.has(pid)) selected.delete(pid);
   }
   tbody.textContent = "";
+  emptyState.hidden = playlists.length > 0;
   for(const p of playlists){
     const tr = document.createElement("tr");
     tr.dataset.pid = p.pid;
