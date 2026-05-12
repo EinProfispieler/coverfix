@@ -1915,7 +1915,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     cmd = args.command or "web"
 
     if cmd == "web":
-        return run_web(open_browser=not args.no_open)
+        return run_web(open_browser=not getattr(args, "no_open", False))
     if cmd == "list":
         return cli_list_playlists()
     if cmd == "generate":

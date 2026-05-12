@@ -22,6 +22,11 @@ chmod +x run.sh
 
 The UI opens at: <http://127.0.0.1:8765>
 
+Or directly:
+```bash
+python3 playlist_cover_helper_web.py
+```
+
 Legacy Tk version (optional):
 ```bash
 python3 playlist_cover_helper.py
