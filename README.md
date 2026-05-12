@@ -35,7 +35,7 @@ You may be prompted for:
 ## Workflow
 1. Click **Refresh**.
 2. Select one or more playlists via the checkboxes.
-3. Use **Generate Selected** to inspect candidates, or **Apply Selected Once** to generate and apply in one batch.
+3. Use **Generate Selected** to inspect candidates, or **Apply** to generate and apply in one batch.
 4. Check **Current in Music** after Music restarts.
 
 ## Output Folder
