@@ -3,8 +3,11 @@ name: package-macos
 on:
   push:
     branches:
-      - "**"
+      - main
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   package:
@@ -38,3 +41,14 @@ jobs:
           name: coverfix-macos-${{ github.sha }}
           path: dist/*.zip
           if-no-files-found: error
+
+      - name: Publish release (rolling)
+        uses: ncipollo/release-action@v1
+        with:
+          tag: macos-latest
+          name: CoverFix macOS Latest
+          body: Automated macOS package from `${{ github.sha }}`.
+          artifacts: dist/*.zip
+          allowUpdates: true
+          replacesArtifacts: true
+          prerelease: true

@@ -746,6 +746,7 @@ INDEX_HTML = """<!doctype html>
       color-scheme: light;
       --bg: #f4f1ea;
       --panel: #fffdf8;
+      --panel-soft: rgba(255,253,248,.88);
       --ink: #1f2523;
       --muted: #66706c;
       --line: #d8d0c3;
@@ -753,7 +754,35 @@ INDEX_HTML = """<!doctype html>
       --accent: #0f766e;
       --accent-dark: #0b5953;
       --danger: #a33b2e;
+      --button-bg: #fffaf1;
+      --table-head-bg: #ebe5da;
+      --table-head-ink: #4e5854;
+      --image-bg: #ebe5da;
+      --log-bg: rgba(31,37,35,.96);
+      --log-ink: #f3efe7;
+      --brand-link: #8fcfc8;
       --shadow: 0 18px 48px rgba(45, 38, 28, .12);
+    }
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #0f1312;
+      --panel: #171d1b;
+      --panel-soft: rgba(23,29,27,.92);
+      --ink: #e7ebe8;
+      --muted: #96a39f;
+      --line: #2a3431;
+      --line-strong: #3a4743;
+      --accent: #2aa79d;
+      --accent-dark: #1e8a81;
+      --danger: #c05848;
+      --button-bg: #202826;
+      --table-head-bg: #222b29;
+      --table-head-ink: #c4cfcb;
+      --image-bg: #242d2b;
+      --log-bg: #101614;
+      --log-ink: #e5ece8;
+      --brand-link: #8fd7cf;
+      --shadow: 0 18px 48px rgba(0, 0, 0, .35);
     }
     * { box-sizing: border-box; }
     [hidden] { display: none !important; }
@@ -772,7 +801,7 @@ INDEX_HTML = """<!doctype html>
       min-height: 36px;
       border: 1px solid var(--line-strong);
       border-radius: 6px;
-      background: #fffaf1;
+      background: var(--button-bg);
       color: var(--ink);
       padding: 7px 12px;
       cursor: pointer;
@@ -836,8 +865,18 @@ INDEX_HTML = """<!doctype html>
     .toolbar, .pane, .log-panel {
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: rgba(255,253,248,.88);
+      background: var(--panel-soft);
       box-shadow: var(--shadow);
+    }
+    .head-tools {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .theme-toggle {
+      min-height: 32px;
+      padding: 6px 10px;
+      font-size: 12px;
     }
     .toolbar {
       display: flex;
@@ -904,8 +943,8 @@ INDEX_HTML = """<!doctype html>
       position: sticky;
       top: 0;
       z-index: 1;
-      background: #ebe5da;
-      color: #4e5854;
+      background: var(--table-head-bg);
+      color: var(--table-head-ink);
       border-bottom: 1px solid var(--line-strong);
       font-weight: 650;
     }
@@ -999,7 +1038,7 @@ INDEX_HTML = """<!doctype html>
       border: 1px solid var(--line);
       border-radius: 8px;
       overflow: hidden;
-      background: #ebe5da;
+      background: var(--image-bg);
     }
     .image-box img {
       width: 100%;
@@ -1053,12 +1092,12 @@ INDEX_HTML = """<!doctype html>
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 12px;
       line-height: 1.45;
-      background: rgba(31,37,35,.96);
-      color: #f3efe7;
+      background: var(--log-bg);
+      color: var(--log-ink);
     }
     .log-brand {
       border-left: 1px solid rgba(230, 224, 210, 0.12);
-      background: rgba(31,37,35,.96);
+      background: var(--log-bg);
       display: grid;
       align-content: center;
       justify-items: center;
@@ -1075,7 +1114,7 @@ INDEX_HTML = """<!doctype html>
       background: #0e1110;
     }
     .log-brand-title {
-      color: #f3efe7;
+      color: var(--log-ink);
       font-size: 11px;
       font-weight: 650;
       text-align: center;
@@ -1089,7 +1128,7 @@ INDEX_HTML = """<!doctype html>
       white-space: nowrap;
     }
     .log-brand-meta a {
-      color: #8fcfc8;
+      color: var(--brand-link);
       text-decoration: none;
     }
     .log-brand-meta a:hover { text-decoration: underline; }
@@ -1120,6 +1159,9 @@ INDEX_HTML = """<!doctype html>
       <div>
         <p class="eyebrow">Apple Music local artwork</p>
         <h1>CoverFix</h1>
+      </div>
+      <div class="head-tools">
+        <button id="btnTheme" class="theme-toggle" type="button" onclick="toggleTheme()">Dark Mode</button>
       </div>
     </header>
 
@@ -1223,6 +1265,7 @@ let sortDir = "asc";
 
 const tbody = document.querySelector("#tbl tbody");
 const logEl = document.getElementById("log");
+const btnTheme = document.getElementById("btnTheme");
 const btnRefresh = document.getElementById("btnRefresh");
 const btnSelectAll = document.getElementById("btnSelectAll");
 const btnClear = document.getElementById("btnClear");
@@ -1241,6 +1284,30 @@ const currentMeta = document.getElementById("currentMeta");
 const generatedImg = document.getElementById("generatedImg");
 const generatedEmpty = document.getElementById("generatedEmpty");
 const generatedMeta = document.getElementById("generatedMeta");
+
+function savedTheme(){
+  try {
+    return localStorage.getItem("coverfix-theme");
+  } catch {
+    return null;
+  }
+}
+function preferredTheme(){
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+function applyTheme(mode){
+  const normalized = mode === "dark" ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", normalized);
+  btnTheme.textContent = normalized === "dark" ? "Light Mode" : "Dark Mode";
+}
+function toggleTheme(){
+  const current = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  const next = current === "dark" ? "light" : "dark";
+  applyTheme(next);
+  try {
+    localStorage.setItem("coverfix-theme", next);
+  } catch {}
+}
 
 function log(msg){
   logEl.textContent += msg + "\\n";
@@ -1583,6 +1650,7 @@ async function applySelected(){
 function openCovers(){ window.open("/api/open-covers"); }
 showRuntimeNotice();
 updateActionState();
+applyTheme(savedTheme() || preferredTheme());
 loadPlaylists();
 </script>
 </body>

@@ -3,9 +3,12 @@
 A local web UI (macOS) for fixing and managing Apple Music playlist artwork.
 
 ## Signature
-![Evil Panda MD Production](assets/Epanda.png)
+<img src="assets/Epanda.png" alt="Evil Panda MD Production" width="180" />
 
 Evil Panda MD Production
+
+## Screenshot
+![CoverFix Screenshot](assets/screen.png)
 
 ## What It Does
 - Lists normal user playlists from Apple Music.
@@ -50,11 +53,13 @@ You may be prompted for:
 
 ## CI Packaging (macOS Only)
 
-GitHub Actions packages CoverFix on every push using a macOS runner.
+GitHub Actions packages CoverFix on every push to `main` using a macOS runner, and publishes a rolling prerelease.
 
 - Workflow: `.github/workflows/package-macos.yml`
 - Output: `CoverFix-macos-<short_sha>.zip`
-- Location: GitHub Actions run artifacts
+- Location:
+  - GitHub Actions run artifacts
+  - GitHub Release tag: `macos-latest` (updated each push)
 
 ## Output Folder
 Generated covers are written to:
