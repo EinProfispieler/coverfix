@@ -1,9 +1,13 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
 *$py.class
+*.egg
 *.egg-info/
 .eggs/
+.Python
 build/
 dist/
 
@@ -14,7 +18,12 @@ env/
 
 # macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+Icon?
 ._*
+.Spotlight-V100
+.Trashes
 
 # IDEs
 .idea/
@@ -25,8 +34,19 @@ env/
 
 # Logs / runtime
 *.log
+.env
+.env.*
+local_config.*
 covers/
 .coverfix/
 
+# Test output
+.coverage
+coverage/
+htmlcov/
+.pytest_cache/
+
 # Misc
 *.tmp
+tmp/
+temp/
